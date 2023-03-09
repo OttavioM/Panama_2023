@@ -78,6 +78,16 @@ def read_txt(fileName):
     col_names = li[0]
     # create a dataframe from the list
     df = pd.DataFrame(li[1:], columns = col_names)
+    
+    # convert from strings to float and integers
+    for icol in df.columns:
+        if icol in ['yyyy', 'mm', 'dd', 'hh']:
+            dtype = 'int'
+        else:
+            dtype = 'float'
+            
+        df[icol] = df[icol].astype(dtype)
+
     # converting the string 'yyyy' 'mm' 'dd' 'hh' in datetime
     df['Datetime'] = pd.to_datetime(df['yyyy'].astype(str) + '/' +\
                                     df['mm'].astype(str) + '/' +\
