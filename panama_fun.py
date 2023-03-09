@@ -46,7 +46,20 @@ def findStrINlist(List,String):
     return np.array(matched_indexes, dtype = int)
 
 def read_txt(fileName):
-    
+    """
+    This is to read the text file generated for the case of Panama
+
+    Parameters
+    ----------
+    fileName : str
+        path/to/the/file.txt.
+
+    Returns
+    -------
+    df : dataframe
+        pandas dataframe of the file.txt with datetime vector.
+
+    """
     # open the file
     f = open(fileName,'r')
     # read each line
