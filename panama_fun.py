@@ -61,7 +61,7 @@ def read_txt(fileName):
 
     """
     # open the file
-    f = open(fileName,'r',encoding='utf-8')
+    f = open(fileName,'r', encoding="ISO-8859-1")
     # read each line
     l = f.readlines()
     # replace the tab '\t\n' with only '\n'
