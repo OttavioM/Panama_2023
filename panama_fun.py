@@ -13,6 +13,8 @@ Created on Thu Mar  9 08:51:40 2023
 # %% IMPORTING LIBRARIES
 import pandas as pd
 import numpy as np
+import xarray as xr
+from scipy import sin, cos, tan, arctan, arctan2, arccos, pi, radians
 # %% FUNCTIONS
 
 def findStrINlist(List,String):
@@ -96,3 +98,57 @@ def read_txt(fileName):
                                     format='%Y/%m/%d/%H')
         
     return df
+
+def MATLAB_distance(lat1, lon1, lat2, lon2):
+    """
+    MATLAB distance: function which allows to calculate the geodetic distance as 
+    the MATLAB CODE DOES!! This is a matlab pythoned code, thank matlab
+    between two nodes as is done in matlab with the function distance.
+    This is the same as doing the matlab distance(lat1,lon1,lat2,lon2)
+            INPUT:
+                -lat1: first node latitude
+                -lon1: first node longitude
+                -lat2: second node latitude, can be array
+                -lon2: second node longitude, can be array
+    """
+    r = 1 # as the esslipsoid(1) matlab
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    a = np.array([sin((lat2 - lat1)/2)**2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1)/2)**2])
+    # ensure that a fall in the closed interval [0 1]
+    a[a < 0] = 0 
+    a[a > 1] = 1
+    rng = np.rad2deg(2 * r * np.arctan2(np.sqrt(a),np.sqrt(1 - a)))
+    return rng
+
+def sel_lonlat(da, lon, lat,LONNAME= 'lon',LATNAME = 'lat',SITENAME = 'nvert', method=None, tolerance = 0.1*1e7):
+        """Select site based on longitude and latitude.
+
+        Args:
+            - lon (float): longitude of the site.
+            - lat (float): latitude of the site.
+            - method (string): Method to use for inexact matches (None or 'nearest').
+
+        Returns:
+            - Dataset for the site defined by lon and lat.
+        """
+        if method not in (None, "nearest"):
+            raise ValueError(
+                "Invalid method. Expecting None or nearest. Got {}".format(method)
+            )
+        lons = da[LONNAME].values
+        lats = da[LATNAME].values
+        dist = MATLAB_distance(lat, lon, lats, lons)[0,:]
+        isite = [int(dist.argmin())]
+        if (method is None) and (dist[isite] > tolerance):
+            raise ValueError(
+                "lon={:f}, lat={:f} not found. Use method='nearest' to get lon={:f}, lat={:f}".format(
+                    lon, lat, lons[isite][0], lats[isite][0]
+                )
+            )
+        indexersdict = {
+            k: isite
+            for k in {LONNAME, LATNAME, SITENAME}.intersection(
+                da.dims
+            )
+        }
+        return da.isel(indexersdict)
