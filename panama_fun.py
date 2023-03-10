@@ -15,6 +15,9 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from scipy import sin, cos, tan, arctan, arctan2, arccos, pi, radians
+import os
+import natsort
+import glob
 # %% FUNCTIONS
 
 def findStrINlist(List,String):
@@ -152,3 +155,31 @@ def sel_lonlat(da, lon, lat,LONNAME= 'lon',LATNAME = 'lat',SITENAME = 'nvert', m
             )
         }
         return da.isel(indexersdict)
+    
+def list_dirs(dir_to_list):
+    """
+    List in a distionary all the subdirectories and then store the files in a list
+
+    Parameters
+    ----------
+    dir_to_list : str
+        path to list the subdirectories.
+
+    Returns
+    -------
+    h : dict
+        dict of the subdirectories.
+
+    """
+    h={}
+    for dirs in os.listdir(dir_to_list):
+        if os.path.basename(dirs).split('_')[0] not in h.keys():
+            h[os.path.basename(dirs).split('_')[0]] = {}
+            
+        if os.path.basename(dirs).split('_')[1] not in h[os.path.basename(dirs).split('_')[0]].keys():
+            h[os.path.basename(dirs).split('_')[0]][os.path.basename(dirs).split('_')[1]] = []
+        
+        files = natsort.natsorted(glob.glob(os.path.join(dir_to_list,dirs,'*')))
+        for file in files:
+            h[os.path.basename(dirs).split('_')[0]][os.path.basename(dirs).split('_')[1]].append(file)
+    return h
