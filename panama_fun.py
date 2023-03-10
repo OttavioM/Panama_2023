@@ -141,7 +141,7 @@ def sel_lonlat(da, lon, lat,LONNAME= 'lon',LATNAME = 'lat',SITENAME = 'nvert', m
         lons = da[LONNAME].values
         lats = da[LATNAME].values
         dist = MATLAB_distance(lat, lon, lats, lons)[0,:]
-        isite = [int(dist.argmin())]
+        isite = int(dist.argmin())
         if (method is None) and (dist[isite] > tolerance):
             raise ValueError(
                 "lon={:f}, lat={:f} not found. Use method='nearest' to get lon={:f}, lat={:f}".format(
