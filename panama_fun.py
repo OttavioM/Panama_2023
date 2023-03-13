@@ -99,7 +99,7 @@ def read_txt(fileName):
                                     df['dd'].astype(str) + '/' +\
                                     df['hh'].astype(str),
                                     format='%Y/%m/%d/%H')
-        
+    f.close()
     return df
 
 def MATLAB_distance(lat1, lon1, lat2, lon2):
