@@ -18,6 +18,18 @@ from scipy import sin, cos, tan, arctan, arctan2, arccos, pi, radians
 import os
 import natsort
 import glob
+
+import geopandas as gpd
+
+import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+from windrose.windrose import WindroseAxes
+from shapely.affinity import affine_transform as T
+from shapely.affinity import rotate as R
+import shapely.geometry
+import gzip
 # %% FUNCTIONS
 
 def findStrINlist(List,String):
@@ -50,6 +62,10 @@ def findStrINlist(List,String):
         i += 1        
     return np.array(matched_indexes, dtype = int)
 
+def find_file_ID(filesTxt,ID):
+    fileID = filesTxt[findStrINlist(filesTxt, '%04.0f' %(ID))[0]]
+    return fileID
+
 def read_txt(fileName):
     """
     This is to read the text file generated for the case of Panama
@@ -66,7 +82,12 @@ def read_txt(fileName):
 
     """
     # open the file
-    f = open(fileName,'r', encoding="ISO-8859-1")
+    if fileName.endswith('.txt'):
+        f = open(fileName,'r', encoding="ISO-8859-1")
+    elif fileName.endswith('.txt.gz'):
+        f = gzip.open(fileName, 'rt', encoding='unicode_escape')
+    else:
+        raise ValueError('File must end with .txt or .txt.gz')
     # read each line
     l = f.readlines()
     # replace the tab '\t\n' with only '\n'
@@ -99,7 +120,7 @@ def read_txt(fileName):
                                     df['dd'].astype(str) + '/' +\
                                     df['hh'].astype(str),
                                     format='%Y/%m/%d/%H')
-    f.close()
+    f.close()    
     return df
 
 def MATLAB_distance(lat1, lon1, lat2, lon2):
@@ -183,3 +204,92 @@ def list_dirs(dir_to_list):
         for file in files:
             h[os.path.basename(dirs).split('_')[0]][os.path.basename(dirs).split('_')[1]].append(file)
     return h
+
+
+def plot_dpt_netcdf(filePath):
+
+  netCdfFiles = list_dirs(os.path.join(filePath,"ficheros_netcdf"))
+  dauxP = xr.open_dataset(netCdfFiles['OLAS']['PACIFICO'][0])
+  # Rename the station coordinate so that you don't overwrite it
+  dauxP = dauxP.assign_coords({'nvert':dauxP['nvert'].data})
+  dauxP = dauxP.rename_vars({'latitude':'lat','longitude':'lon'})
+
+  dauxC = xr.open_dataset(netCdfFiles['OLAS']['CARIBE'][0])
+  # Rename the station coordinate so that you don't overwrite it
+  oldauxCsP = dauxC.assign_coords({'nvert':dauxC['nvert'].data})
+  dauxC = dauxC.rename_vars({'latitude':'lat','longitude':'lon'})
+
+  t = px.scatter_mapbox(lat=dauxP.lat, lon=dauxP.lon, color=dauxP.z, range_color = [0,100], labels = {'color':'depth [m]'}).update_layout(mapbox={"style": "carto-positron", "zoom":6})
+  t.add_traces(data = px.scatter_mapbox(lat=dauxC.lat, lon=dauxC.lon, color=dauxC.z).data)
+  t.show()
+  return
+ 
+def get_temporal_series(filePath):
+
+  da = xr.open_mfdataset(filePath)
+  # Rename the station coordinate so that you don't overwrite it
+  da = da.assign_coords({'nvert':da['nvert'].data})
+  da = da.rename_vars({'latitude':'lat','longitude':'lon'})
+  da['lon'] = (('nvert'),da['lon'][0,:].data)
+  da['lat'] = (('nvert'),da['lat'][0,:].data)
+  da['z'] = (('nvert'),da['z'][0,:].data)
+
+
+  return da
+
+def quiver_map(da, step = 100):
+  a = shapely.wkt.loads(
+        "POLYGON ((-0.5 0.1, 0.5 0.1, 0.2 0.4, 1 0, 0.2 -0.4, 0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 0.1))")
+        
+  gdf = (
+      gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+      # .set_crs("EPSG:4326", allow_override=True)
+  )
+
+  # quiv = px.scatter_mapbox(lat=da.lat[::step], lon=da.lon[::step]).update_layout(mapbox={"style": "carto-positron", "zoom":6})
+
+  df_waves = pd.concat(
+          [
+              pd.DataFrame(
+                  {
+                      "lat": da.lat.data[::step],
+                      "lon": da.lon.data[::step],
+                      "d": -(da['dir'].sel(time = '2016-11-22T06:00:00')[::step,0] +90)%360,
+                      "s": da['tp'].sel(time = '2016-11-22T06:00:00')[::step,0]*15*1e-4,
+                      "e": da['hs'].sel(time = '2016-11-22T06:00:00')[::step,0]
+                  }
+              )
+              for b in [gdf.sample(2)["geometry"].total_bounds for _ in range(5)]
+          ]
+          ).reset_index(drop=True)
+      
+  df_waves = df_waves.fillna(0)
+
+  quiv = px.choropleth_mapbox(
+      df_waves,
+      geojson=gpd.GeoSeries(
+          df_waves.loc[:, ["lat", "lon", "d", "s"]].apply(
+              lambda r: R(
+                  T(shapely.affinity.translate(a, -a.exterior.xy[0][3], -a.exterior.xy[1][3]),
+                      [r["s"], 0, 0, r["s"], r["lon"], r["lat"]]
+                  ),
+                  r["d"],
+                  origin=(r["lon"], r["lat"]),
+                  use_radians=False,
+              ),
+              axis=1,
+          )
+      ).__geo_interface__,
+      locations=df_waves.index,
+      color="e",
+      labels = {'e':'hs [m]'},
+  )
+
+  # update alyout defining the map style and the zoom
+  quiv.update_layout(mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":0,"b":0})
+  # change the last colorbar to be on the left:
+  quiv.update_layout(coloraxis_colorbar_x=-0.15)
+  quiv.update_coloraxes(cmin = 0, cmax = 2.5, colorbar = {'title':'hs [m]'})
+  quiv.show()
+
+  return
