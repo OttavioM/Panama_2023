@@ -286,9 +286,9 @@ def quiver_map(da, step = 100, fecha = '2016-11-22T06:00:00',title = ''):
   )
 
   # update alyout defining the map style and the zoom
-  quiv.update_layout(title = title,mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":0,"b":0})
+  quiv.update_layout(title = title,mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":20,"b":0})
   # change the last colorbar to be on the left:
-  quiv.update_layout(coloraxis_colorbar_x=-0.15)
+  # quiv.update_layout(coloraxis_colorbar_x=-0.15)
   quiv.update_coloraxes(cmin = 0, cmax = 2.5, colorbar = {'title':'hs [m]'})
   quiv.show()
 
