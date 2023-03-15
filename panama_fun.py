@@ -233,7 +233,7 @@ def get_temporal_series(filePath):
   da['lon'] = (('nvert'),da['lon'][0,:].data)
   da['lat'] = (('nvert'),da['lat'][0,:].data)
   da['z'] = (('nvert'),da['z'][0,:].data)
-
+  da.attrs = []
 
   return da
 
