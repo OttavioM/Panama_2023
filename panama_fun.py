@@ -237,7 +237,7 @@ def get_temporal_series(filePath):
 
   return da
 
-def quiver_map(da, step = 100):
+def quiver_map(da, step = 100, fecha = '2016-11-22T06:00:00',title = ''):
   a = shapely.wkt.loads(
         "POLYGON ((-0.5 0.1, 0.5 0.1, 0.2 0.4, 1 0, 0.2 -0.4, 0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 0.1))")
         
@@ -254,9 +254,9 @@ def quiver_map(da, step = 100):
                   {
                       "lat": da.lat.data[::step],
                       "lon": da.lon.data[::step],
-                      "d": -(da['dir'].sel(time = '2016-11-22T06:00:00')[::step,0] +90)%360,
-                      "s": da['tp'].sel(time = '2016-11-22T06:00:00')[::step,0]*15*1e-4,
-                      "e": da['hs'].sel(time = '2016-11-22T06:00:00')[::step,0]
+                      "d": -(da['dir'].sel(time = fecha)[::step,0] +90)%360,
+                      "s": da['tp'].sel(time = fecha)[::step,0]*15*1e-4,
+                      "e": da['hs'].sel(time = fecha)[::step,0]
                   }
               )
               for b in [gdf.sample(2)["geometry"].total_bounds for _ in range(5)]
@@ -286,7 +286,7 @@ def quiver_map(da, step = 100):
   )
 
   # update alyout defining the map style and the zoom
-  quiv.update_layout(mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":0,"b":0})
+  quiv.update_layout(title = title,mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":0,"b":0})
   # change the last colorbar to be on the left:
   quiv.update_layout(coloraxis_colorbar_x=-0.15)
   quiv.update_coloraxes(cmin = 0, cmax = 2.5, colorbar = {'title':'hs [m]'})
