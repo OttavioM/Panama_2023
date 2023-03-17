@@ -63,6 +63,22 @@ def findStrINlist(List,String):
     return np.array(matched_indexes, dtype = int)
 
 def find_file_ID(filesTxt,ID):
+    """
+    This function allows to find all the ID of the nodes selected by the user
+    
+    
+    Parameters
+    ----------
+    filesTxt : list
+        list of the txt.gz files
+    ID : int
+        integer of the ID of the node
+    
+    Returns
+    -------
+    fileID: str
+        string corresponding to the name of the file
+    """
     fileID = filesTxt[findStrINlist(filesTxt, '%04.0f' %(ID))[0]]
     return fileID
 
@@ -83,8 +99,10 @@ def read_txt(fileName):
     """
     # open the file
     if fileName.endswith('.txt'):
+        # read if it is txt
         f = open(fileName,'r', encoding="ISO-8859-1")
     elif fileName.endswith('.txt.gz'):
+        # read with gzip the file
         f = gzip.open(fileName, 'rt', encoding='unicode_escape')
     else:
         raise ValueError('File must end with .txt or .txt.gz')
@@ -192,14 +210,18 @@ def list_dirs(dir_to_list):
         dict of the subdirectories.
 
     """
+    # create empty dictionary
     h={}
+    # loop over the subdirectories
     for dirs in os.listdir(dir_to_list):
+        # check if the subdirecoty first part exists
         if os.path.basename(dirs).split('_')[0] not in h.keys():
             h[os.path.basename(dirs).split('_')[0]] = {}
-            
+        # check if the subdirecoty second part exists
         if os.path.basename(dirs).split('_')[1] not in h[os.path.basename(dirs).split('_')[0]].keys():
             h[os.path.basename(dirs).split('_')[0]][os.path.basename(dirs).split('_')[1]] = []
-        
+
+        # Loop over the files in the subdirectory
         files = natsort.natsorted(glob.glob(os.path.join(dir_to_list,dirs,'*')))
         for file in files:
             h[os.path.basename(dirs).split('_')[0]][os.path.basename(dirs).split('_')[1]].append(file)
@@ -207,89 +229,151 @@ def list_dirs(dir_to_list):
 
 
 def plot_dpt_netcdf(filePath):
-
-  netCdfFiles = list_dirs(os.path.join(filePath,"ficheros_netcdf"))
-  dauxP = xr.open_dataset(netCdfFiles['OLAS']['PACIFICO'][0])
-  # Rename the station coordinate so that you don't overwrite it
-  dauxP = dauxP.assign_coords({'nvert':dauxP['nvert'].data})
-  dauxP = dauxP.rename_vars({'latitude':'lat','longitude':'lon'})
-
-  dauxC = xr.open_dataset(netCdfFiles['OLAS']['CARIBE'][0])
-  # Rename the station coordinate so that you don't overwrite it
-  oldauxCsP = dauxC.assign_coords({'nvert':dauxC['nvert'].data})
-  dauxC = dauxC.rename_vars({'latitude':'lat','longitude':'lon'})
-
-  t = px.scatter_mapbox(lat=dauxP.lat, lon=dauxP.lon, color=dauxP.z, range_color = [0,100], labels = {'color':'depth [m]'}).update_layout(mapbox={"style": "carto-positron", "zoom":6})
-  t.add_traces(data = px.scatter_mapbox(lat=dauxC.lat, lon=dauxC.lon, color=dauxC.z).data)
-  t.show()
-  return
+    """
+    This function allows to plot the dpt for a netcdf file, this is an example on how to use plotly and
+    the plot of a variable spatially.
+    
+    
+    Parameters
+    ----------
+    filePath : string,
+        path/to/folder_nc
+    
+    Returns
+    -------
+        None
+    """
+    # create the dictionary of the folders and subfolders
+    netCdfFiles = list_dirs(os.path.join(filePath,"ficheros_netcdf"))
+    # load the dataset example in pacific and waves
+    dauxP = xr.open_dataset(netCdfFiles['OLAS']['PACIFICO'][0])
+    # Rename the station coordinate so that you don't overwrite it
+    dauxP = dauxP.assign_coords({'nvert':dauxP['nvert'].data})
+    dauxP = dauxP.rename_vars({'latitude':'lat','longitude':'lon'})
+    # the same waves but in the caribbean
+    dauxC = xr.open_dataset(netCdfFiles['OLAS']['CARIBE'][0])
+    # Rename the station coordinate so that you don't overwrite it
+    oldauxCsP = dauxC.assign_coords({'nvert':dauxC['nvert'].data})
+    dauxC = dauxC.rename_vars({'latitude':'lat','longitude':'lon'})
+    
+    # create the scatter map_box of the dataset already loaded, the range color is 
+    # 0-100 due to the fact that some depth is very high and the automatic decision of 
+    # the clorbar can be too high
+    t = px.scatter_mapbox(lat=dauxP.lat, lon=dauxP.lon, color=dauxP.z, range_color = [0,100], labels = {'color':'depth [m]'}).update_layout(mapbox={"style": "carto-positron", "zoom":6})
+    # add the traces of the caribbean part
+    t.add_traces(data = px.scatter_mapbox(lat=dauxC.lat, lon=dauxC.lon, color=dauxC.z).data)
+    t.show()
+    return
  
 def get_temporal_series(filePath):
+    """
+    Funciton that allows to get the temporal series of a all the nodes in the netcdf.
+    This concatenate all the netcdf and load them in dask array, masked and then less memorey usage
 
-  da = xr.open_mfdataset(filePath)
-  # Rename the station coordinate so that you don't overwrite it
-  da = da.assign_coords({'nvert':da['nvert'].data})
-  da = da.rename_vars({'latitude':'lat','longitude':'lon'})
-  da['lon'] = (('nvert'),da['lon'][0,:].data)
-  da['lat'] = (('nvert'),da['lat'][0,:].data)
-  da['z'] = (('nvert'),da['z'][0,:].data)
-  da.attrs = []
+    Parameters
+    ----------
+    filePath : list
+        list of the files in the desired folder
 
-  return da
+    Returns
+    -------
+    da: xarrayDataset
+        dataset of all the time of the files
+    """
+    # open the dataset
+    da = xr.open_mfdataset(filePath)
+    # Rename the station coordinate so that you don't overwrite it
+    da = da.assign_coords({'nvert':da['nvert'].data})
+    da = da.rename_vars({'latitude':'lat','longitude':'lon'})
+    # the concatenation of the variables that has no the time dimension
+    # is increasing the size of this variables
+    da['lon'] = (('nvert'),da['lon'][0,:].data)
+    da['lat'] = (('nvert'),da['lat'][0,:].data)
+    da['z'] = (('nvert'),da['z'][0,:].data)
+    # the attributes have accents and also have special characters, then they are deleted due to the fact
+    # that sometimes colab cannot decode these
+    da.attrs = []
+
+    return da
 
 def quiver_map(da, step = 100, fecha = '2016-11-22T06:00:00',title = ''):
-  a = shapely.wkt.loads(
-        "POLYGON ((-0.5 0.1, 0.5 0.1, 0.2 0.4, 1 0, 0.2 -0.4, 0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 0.1))")
+    """
+    This is a quiver map, it is an example as a quiver map can be done with plotly, however, is hughe hand made
+    
+    
+    Parameters
+    ----------
+    da : xarray dataset
+        dataset that has at least: lat,lon,direction, hs, tp
+    step : int, optional
+        step to plot the data, it higher than lower data, step = 1 all the data are plotted, by default 100
+    fecha : str, optional
+        date in which the quiver will diaplayed, by default '2016-11-22T06:00:00'
+    title : str, optional
+        title of the figure, by default ''
+    
+    Returns
+    -------
+        None
+    """
+
+    # create with shapely the arrow
+    a = shapely.wkt.loads(
+            "POLYGON ((-0.5 0.1, 0.5 0.1, 0.2 0.4, 1 0, 0.2 -0.4, 0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 -0.1, -0.5 0.1))")
+    # creating a geopandas database
+    gdf = (
+        gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+        # .set_crs("EPSG:4326", allow_override=True)
+    )
+
+    # quiv = px.scatter_mapbox(lat=da.lat[::step], lon=da.lon[::step]).update_layout(mapbox={"style": "carto-positron", "zoom":6})
+    # creating a dataset in pandas that uses the variables that we decided before
+    # a dataframe per each gdf geometry
+    df_waves = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "lat": da.lat.data[::step],
+                        "lon": da.lon.data[::step],
+                        "d": -(da['dir'].sel(time = fecha)[::step,0] +90)%360,
+                        "s": da['tp'].sel(time = fecha)[::step,0]*15*1e-4,
+                        "e": da['hs'].sel(time = fecha)[::step,0]
+                    }
+                )
+                for b in [gdf.sample(2)["geometry"].total_bounds for _ in range(5)]
+            ]
+            ).reset_index(drop=True)
         
-  gdf = (
-      gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-      # .set_crs("EPSG:4326", allow_override=True)
-  )
+    # fill the nans with 0 to have always data, the nans or nulls are not accepted in
+    # the px.choropleth_mapbox
+    df_waves = df_waves.fillna(0)
+    # creating the quiver, In a Mapbox choropleth map, each row of data_frame is represented by a colored region on a Mapbox map
+    # (GeoJSON-formatted dict) – Must contain a Polygon feature collection, with IDs, which are references from locations.
+    quiv = px.choropleth_mapbox(
+        df_waves,
+        geojson=gpd.GeoSeries(
+            df_waves.loc[:, ["lat", "lon", "d", "s"]].apply(
+                lambda r: R(
+                    T(shapely.affinity.translate(a, -a.exterior.xy[0][3], -a.exterior.xy[1][3]),
+                        [r["s"], 0, 0, r["s"], r["lon"], r["lat"]]
+                    ),
+                    r["d"],
+                    origin=(r["lon"], r["lat"]),
+                    use_radians=False,
+                ),
+                axis=1,
+            )
+        ).__geo_interface__,
+        locations=df_waves.index,
+        color="e",
+        labels = {'e':'hs [m]'},
+    )
 
-  # quiv = px.scatter_mapbox(lat=da.lat[::step], lon=da.lon[::step]).update_layout(mapbox={"style": "carto-positron", "zoom":6})
+    # update alyout defining the map style and the zoom
+    quiv.update_layout(title = title,mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":20,"b":0})
+    # change the last colorbar to be on the left:
+    # quiv.update_layout(coloraxis_colorbar_x=-0.15)
+    quiv.update_coloraxes(cmin = 0, cmax = 2.5, colorbar = {'title':'hs [m]'})
+    quiv.show()
 
-  df_waves = pd.concat(
-          [
-              pd.DataFrame(
-                  {
-                      "lat": da.lat.data[::step],
-                      "lon": da.lon.data[::step],
-                      "d": -(da['dir'].sel(time = fecha)[::step,0] +90)%360,
-                      "s": da['tp'].sel(time = fecha)[::step,0]*15*1e-4,
-                      "e": da['hs'].sel(time = fecha)[::step,0]
-                  }
-              )
-              for b in [gdf.sample(2)["geometry"].total_bounds for _ in range(5)]
-          ]
-          ).reset_index(drop=True)
-      
-  df_waves = df_waves.fillna(0)
-
-  quiv = px.choropleth_mapbox(
-      df_waves,
-      geojson=gpd.GeoSeries(
-          df_waves.loc[:, ["lat", "lon", "d", "s"]].apply(
-              lambda r: R(
-                  T(shapely.affinity.translate(a, -a.exterior.xy[0][3], -a.exterior.xy[1][3]),
-                      [r["s"], 0, 0, r["s"], r["lon"], r["lat"]]
-                  ),
-                  r["d"],
-                  origin=(r["lon"], r["lat"]),
-                  use_radians=False,
-              ),
-              axis=1,
-          )
-      ).__geo_interface__,
-      locations=df_waves.index,
-      color="e",
-      labels = {'e':'hs [m]'},
-  )
-
-  # update alyout defining the map style and the zoom
-  quiv.update_layout(title = title,mapbox={"style": "carto-positron", "zoom": 7, "center":{'lat':8.9,'lon':-81}}, margin={"l":0,"r":0,"t":20,"b":0})
-  # change the last colorbar to be on the left:
-  # quiv.update_layout(coloraxis_colorbar_x=-0.15)
-  quiv.update_coloraxes(cmin = 0, cmax = 2.5, colorbar = {'title':'hs [m]'})
-  quiv.show()
-
-  return
+    return
