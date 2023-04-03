@@ -79,7 +79,7 @@ def find_file_ID(filesTxt,ID):
     fileID: str
         string corresponding to the name of the file
     """
-    fileID = filesTxt[findStrINlist(filesTxt, '%04.0f' %(ID))[0]]
+    fileID = filesTxt[findStrINlist(filesTxt, '_%04.0f' %(ID))[0]]
     return fileID
 
 def read_txt(fileName):
